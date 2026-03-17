@@ -21,7 +21,6 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file is not None:
 
-    # 👉 WICHTIG: Datei korrekt speichern mit Endung
     suffix = os.path.splitext(uploaded_file.name)[1]
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -30,21 +29,18 @@ if uploaded_file is not None:
 
     st.write(f"Datei gespeichert unter: {file_path}")
 
-    # EXTRA CHECK (verhindert deinen Fehler)
     if not os.path.exists(file_path):
         st.error("Datei wurde nicht korrekt gespeichert ❌")
     else:
 
-        # 📷 BILD
         if uploaded_file.type.startswith("image"):
             st.subheader("📷 Bild-Erkennung")
 
             results = model(file_path)
             annotated = results[0].plot()
 
-            st.image(annotated, caption="Erkannt", use_column_width=True)
+            st.image(annotated, caption="Erkannte Objekte", use_column_width=True)
 
-        # 🎥 VIDEO
         elif uploaded_file.type.startswith("video"):
             st.subheader("🎥 Video-Erkennung")
 
@@ -59,7 +55,8 @@ if uploaded_file is not None:
 
                 output_path = file_path + "_out.mp4"
 
-                fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+                # WICHTIG: avc1-Codec für bessere Browserkompatibilität
+                fourcc = cv2.VideoWriter_fourcc(*"avc1")
                 out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
                 progress = st.progress(0)
@@ -82,7 +79,9 @@ if uploaded_file is not None:
                 cap.release()
                 out.release()
 
-                st.success("✅ Video fertig!")
-
-                with open(output_path, "rb") as f:
-                    st.video(f.read())
+                # Prüfen, ob Video erstellt wurde
+                if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+                    st.error("❌ Video wurde nicht korrekt erstellt")
+                else:
+                    st.success("✅ Video fertig!")
+                    st.video(output_path)
