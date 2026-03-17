@@ -3,6 +3,7 @@ from ultralytics import YOLO
 import cv2
 import tempfile
 import os
+os.environ["OPENCV_VIDEOIO_PRIORITY_MSMF"] = "0"
 
 st.set_page_config(page_title="YOLO Objekterkennung", layout="centered")
 
