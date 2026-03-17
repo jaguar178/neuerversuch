@@ -3,86 +3,86 @@ from ultralytics import YOLO
 import cv2
 import tempfile
 import os
-os.environ["OPENCV_VIDEOIO_PRIORITY_MSMF"] = "0"
 
-st.set_page_config(page_title="YOLO Objekterkennung", layout="centered")
+st.set_page_config(page_title="YOLO Objekterkennung")
 
 st.title("🔍 YOLO Objekterkennung")
-st.write("Lade ein Bild oder Video hoch und erkenne Objekte automatisch.")
 
-# Modell laden (einmalig)
 @st.cache_resource
 def load_model():
     return YOLO("yolov8n.pt")
 
 model = load_model()
 
-uploaded_file = st.file_uploader("Datei hochladen", type=["jpg", "jpeg", "png", "mp4", "mov"])
+uploaded_file = st.file_uploader(
+    "Bild oder Video hochladen",
+    type=["jpg", "jpeg", "png", "mp4", "mov"]
+)
 
 if uploaded_file is not None:
-    # Temporäre Datei speichern
-    tfile = tempfile.NamedTemporaryFile(delete=False)
-    tfile.write(uploaded_file.read())
-    file_path = tfile.name
 
-    file_type = uploaded_file.type
+    # 👉 WICHTIG: Datei korrekt speichern mit Endung
+    suffix = os.path.splitext(uploaded_file.name)[1]
 
-    # 📷 BILD
-    if file_type.startswith("image"):
-        st.subheader("📷 Bild-Erkennung")
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(uploaded_file.read())
+        file_path = tmp.name
 
-        results = model(file_path)
-        annotated = results[0].plot()
+    st.write(f"Datei gespeichert unter: {file_path}")
 
-        st.image(annotated, caption="Erkannte Objekte", use_column_width=True)
+    # EXTRA CHECK (verhindert deinen Fehler)
+    if not os.path.exists(file_path):
+        st.error("Datei wurde nicht korrekt gespeichert ❌")
+    else:
 
-    # 🎥 VIDEO
-    elif file_type.startswith("video"):
-        st.subheader("🎥 Video-Erkennung (kann etwas dauern)")
+        # 📷 BILD
+        if uploaded_file.type.startswith("image"):
+            st.subheader("📷 Bild-Erkennung")
 
-        cap = cv2.VideoCapture(file_path)
-
-        # Video Eigenschaften
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        fps = int(cap.get(cv2.CAP_PROP_FPS))
-
-        output_path = file_path + "_output.mp4"
-
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-
-        progress_bar = st.progress(0)
-        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        current_frame = 0
-
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            results = model(frame)
+            results = model(file_path)
             annotated = results[0].plot()
 
-            out.write(annotated)
+            st.image(annotated, caption="Erkannt", use_column_width=True)
 
-            current_frame += 1
-            progress_bar.progress(min(current_frame / frame_count, 1.0))
+        # 🎥 VIDEO
+        elif uploaded_file.type.startswith("video"):
+            st.subheader("🎥 Video-Erkennung")
 
-        cap.release()
-        out.release()
+            cap = cv2.VideoCapture(file_path)
 
-        st.success("✅ Video verarbeitet!")
+            if not cap.isOpened():
+                st.error("Video konnte nicht geöffnet werden ❌")
+            else:
+                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                fps = int(cap.get(cv2.CAP_PROP_FPS))
 
-        # Video anzeigen
-        with open(output_path, "rb") as f:
-            st.video(f.read())
+                output_path = file_path + "_out.mp4"
 
-    else:
-        st.error("Dateityp nicht unterstützt ❌")
+                fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+                out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
-    # Aufräumen
-    try:
-        os.remove(file_path)
-    except:
-        pass
+                progress = st.progress(0)
+                total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                current = 0
+
+                while True:
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+
+                    results = model(frame)
+                    annotated = results[0].plot()
+                    out.write(annotated)
+
+                    current += 1
+                    if total_frames > 0:
+                        progress.progress(min(current / total_frames, 1.0))
+
+                cap.release()
+                out.release()
+
+                st.success("✅ Video fertig!")
+
+                with open(output_path, "rb") as f:
+                    st.video(f.read())
